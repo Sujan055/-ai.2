@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AgentInfo, ThemeMode } from '../types';
 import { THEME_CONFIGS } from '../constants';
-import { Settings2, Power, ShieldCheck, Zap, Activity, Heart, Flame, Moon, Sparkles } from 'lucide-react';
+import { Settings2, Power, ShieldCheck, Zap, Activity, Heart, Flame, Moon, Sparkles, Key, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface ControlPanelProps {
   agents: AgentInfo[];
@@ -23,6 +23,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   currentTheme,
   onThemeChange
 }) => {
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        // @ts-ignore
+        const status = await window.aistudio.hasSelectedApiKey();
+        setHasKey(status);
+      } catch (e) {
+        setHasKey(false);
+      }
+    };
+    if (isOpen) checkKey();
+  }, [isOpen]);
+
+  const handleSelectKey = async () => {
+    try {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      // Assume success as per instructions to avoid race conditions
+      setHasKey(true);
+    } catch (e) {
+      console.error("Failed to open key selector", e);
+    }
+  };
+
   if (!isOpen) return null;
 
   const personalities = [
@@ -47,6 +73,55 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-hide">
+          {/* Neural Access Key Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-orbitron text-white/30 uppercase tracking-[0.4em]">Neural Access Key</h3>
+              <Key size={12} className={hasKey ? "text-emerald-400" : "text-amber-400"} />
+            </div>
+            
+            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`} />
+                  <span className="text-[10px] font-mono text-white/60 uppercase tracking-wider">
+                    {hasKey === null ? 'Checking Status...' : hasKey ? 'Link Authenticated' : 'Key Required'}
+                  </span>
+                </div>
+                <button 
+                  onClick={handleSelectKey}
+                  className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all"
+                >
+                  <RefreshCw size={14} className={hasKey === null ? 'animate-spin' : ''} />
+                </button>
+              </div>
+
+              <p className="text-[9px] text-white/30 font-mono leading-relaxed">
+                Advanced synthesis protocols (Veo & Gemini 3 Pro) require a paid API key for low-latency, high-fidelity processing.
+              </p>
+
+              <div className="flex flex-col space-y-3 pt-2">
+                <button 
+                  onClick={handleSelectKey}
+                  className="w-full py-3 bg-white/5 border border-white/10 hover:border-[var(--theme-color)]/50 rounded-2xl text-[10px] font-orbitron text-white uppercase tracking-widest transition-all flex items-center justify-center space-x-2"
+                >
+                  <ShieldCheck size={14} className="text-[var(--theme-color)]" />
+                  <span>Configure Access Key</span>
+                </button>
+                
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full py-3 text-center text-[9px] font-mono text-white/20 hover:text-[var(--theme-color)] transition-colors flex items-center justify-center space-x-2"
+                >
+                  <ExternalLink size={12} />
+                  <span>View Billing Documentation</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
           {/* Personality Matrix Section */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -113,20 +188,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   </button>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <h3 className="text-[10px] font-orbitron text-white/30 uppercase tracking-[0.4em]">Neural Stability</h3>
-            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-white/40 uppercase"><span>Matrix Sync</span><span>98.4%</span></div>
-                <div className="h-1 bg-white/5 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 w-[98.4%]" /></div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-white/40 uppercase"><span>Emotional Resonance</span><span>MAX</span></div>
-                <div className="h-1 bg-white/5 rounded-full overflow-hidden"><div className="h-full bg-[var(--theme-color)] w-full" /></div>
-              </div>
             </div>
           </div>
         </div>

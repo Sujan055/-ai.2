@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { ImageIcon, VideoIcon, Wand2, Download, Trash2, Maximize2, MonitorPlay } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ImageIcon, VideoIcon, Wand2, Download, Trash2, Maximize2, MonitorPlay, Mic, MicOff } from 'lucide-react';
 import { GeneratedMedia } from '../types';
 
 interface CreativeStudioProps {
@@ -18,6 +18,45 @@ const CreativeStudio: React.FC<CreativeStudioProps> = ({
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [resolution, setResolution] = useState('1K');
+  const [isListening, setIsListening] = useState(false);
+
+  // Check if SpeechRecognition is supported
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+  if (recognition) {
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setPrompt(prev => prev ? `${prev} ${transcript}` : transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+  }
+
+  const toggleListening = () => {
+    if (!recognition) {
+      alert("Speech recognition is not supported in your browser.");
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      setIsListening(true);
+      recognition.start();
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,12 +85,26 @@ const CreativeStudio: React.FC<CreativeStudioProps> = ({
             </div>
           ) : (
             <div className="space-y-6">
-              <textarea 
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={activeTab === 'image' ? "Describe your vision..." : "Cinematic scene prompt..."}
-                className="w-full bg-black/40 border border-white/10 rounded-[1.5rem] p-6 text-white font-quicksand outline-none focus:border-[var(--theme-color)]/50 transition-all resize-none h-32"
-              />
+              <div className="relative group">
+                <textarea 
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={activeTab === 'image' ? "Describe your vision..." : "Cinematic scene prompt..."}
+                  className="w-full bg-black/40 border border-white/10 rounded-[1.5rem] p-6 pr-16 text-white font-quicksand outline-none focus:border-[var(--theme-color)]/50 transition-all resize-none h-32"
+                />
+                <button 
+                  onClick={toggleListening}
+                  className={`absolute right-4 bottom-4 p-3 rounded-2xl transition-all ${
+                    isListening 
+                    ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+                    : 'bg-white/5 text-white/40 hover:text-[var(--theme-color)] hover:bg-white/10'
+                  }`}
+                  title={isListening ? "Listening..." : "Dictate prompt"}
+                >
+                  {isListening ? <Mic size={18} /> : <Mic size={18} />}
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[9px] font-orbitron text-white/30 uppercase tracking-widest">Aspect Ratio</label>
