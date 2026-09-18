@@ -4,6 +4,7 @@ import { GoogleGenAI, Modality, LiveServerMessage, FunctionDeclaration, Type, To
 import { ThemeMode, AgentInfo, GeneratedMedia } from './types';
 import { THEME_CONFIGS, SYSTEM_MODEL, AGENTS as INITIAL_AGENTS, IMAGE_GEN_MODEL, VIDEO_GEN_MODEL, IMAGE_EDIT_MODEL, PRO_MODEL, TTS_MODEL } from './constants';
 import { decode, decodeAudioData, createBlob, blobToBase64 } from './services/audioUtils';
+import { traceGeminiCall, recordLiveSessionError } from './services/telemetry';
 import Hologram from './components/Hologram';
 import AgentDashboard from './components/AgentDashboard';
 import DiagnosticOverlay from './components/DiagnosticOverlay';
@@ -94,18 +95,23 @@ const App: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const currentThemeConfig = THEME_CONFIGS[theme];
       
-      const response = await ai.models.generateContent({
-        model: TTS_MODEL,
-        contents: [{ parts: [{ text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: currentThemeConfig.voice },
+      const response = await traceGeminiCall(
+        'gemini.tts',
+        { operation: 'text_completion', model: TTS_MODEL, prompt: text },
+        () =>
+          ai.models.generateContent({
+            model: TTS_MODEL,
+            contents: [{ parts: [{ text }] }],
+            config: {
+              responseModalities: [Modality.AUDIO],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: currentThemeConfig.voice },
+                },
+              },
             },
-          },
-        },
-      });
+          }),
+      );
 
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
@@ -172,7 +178,10 @@ const App: React.FC = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      const sessionPromise = ai.live.connect({
+      const sessionPromise = traceGeminiCall(
+        'gemini.live_session.connect',
+        { operation: 'chat', model: SYSTEM_MODEL },
+        () => ai.live.connect({
         model: SYSTEM_MODEL,
         callbacks: {
           onopen: () => {
@@ -263,6 +272,7 @@ const App: React.FC = () => {
           },
           onerror: (e) => {
             console.error("Live API Error:", e);
+            recordLiveSessionError('connection', e);
             addLog(`ERROR: Link disrupted. I'm trying to stay connected...`);
             setIsSessionActive(false);
           },
@@ -280,10 +290,12 @@ const App: React.FC = () => {
           inputAudioTranscription: {},
           tools
         }
-      });
+        }),
+      );
       
       sessionPromiseRef.current = sessionPromise;
     } catch (err) {
+      recordLiveSessionError('start_session', err);
       addLog(`ERROR: Synchronization failed - ${err}`);
     }
   };
@@ -295,11 +307,16 @@ const App: React.FC = () => {
       await ensureApiKey();
       
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: IMAGE_GEN_MODEL,
-        contents: { parts: [{ text: prompt }] },
-        config: { imageConfig: { aspectRatio: aspectRatio as any, imageSize: size as any } },
-      });
+      const response = await traceGeminiCall(
+        'gemini.generate_image',
+        { operation: 'generate_content', model: IMAGE_GEN_MODEL, prompt },
+        () =>
+          ai.models.generateContent({
+            model: IMAGE_GEN_MODEL,
+            contents: { parts: [{ text: prompt }] },
+            config: { imageConfig: { aspectRatio: aspectRatio as any, imageSize: size as any } },
+          }),
+      );
 
       const candidate = response.candidates?.[0];
       if (candidate) {
@@ -325,15 +342,20 @@ const App: React.FC = () => {
       await ensureApiKey();
       
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      let operation = await ai.models.generateVideos({
-        model: VIDEO_GEN_MODEL,
-        prompt,
-        config: {
-          numberOfVideos: 1,
-          resolution: '1080p',
-          aspectRatio: aspectRatio as any
-        }
-      });
+      let operation = await traceGeminiCall(
+        'gemini.generate_video',
+        { operation: 'generate_content', model: VIDEO_GEN_MODEL, prompt },
+        () =>
+          ai.models.generateVideos({
+            model: VIDEO_GEN_MODEL,
+            prompt,
+            config: {
+              numberOfVideos: 1,
+              resolution: '1080p',
+              aspectRatio: aspectRatio as any
+            }
+          }),
+      );
 
       while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 5000));

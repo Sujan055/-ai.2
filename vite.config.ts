@@ -13,6 +13,18 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Same-origin relay for Traceloop trace export (keeps the API key out of
+        // the browser bundle; the dev proxy injects it server-side).
+        proxy: {
+          '/api/traceloop': {
+            target: 'https://api.traceloop.com',
+            changeOrigin: true,
+            rewrite: (p: string) => p.replace(/^\/api\/traceloop/, '/v1/traces'),
+            headers: env.TRACELOOP_API_KEY
+              ? { Authorization: `Bearer ${env.TRACELOOP_API_KEY}` }
+              : {},
+          },
+        },
       },
       plugins: [react()],
       define: {

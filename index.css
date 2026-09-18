@@ -1,0 +1,14 @@
+/*
+ * Global stylesheet for Nami // Elysian Link.
+ * Base typography, body background, and theme color variables are defined in
+ * the inline <style> block in index.html; utility classes live here.
+ */
+
+/* Used by the neural log panels in App.tsx */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / Edge */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome / Safari */
+}
